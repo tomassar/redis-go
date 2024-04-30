@@ -18,6 +18,7 @@ type Server struct {
 	ln        net.Listener
 	addPeerCh chan *Peer
 	quitCh    chan struct{}
+	msgCh     chan []byte
 }
 
 func NewServer(cfg Config) *Server {
@@ -31,6 +32,7 @@ func NewServer(cfg Config) *Server {
 		peers:     make(map[*Peer]bool),
 		addPeerCh: make(chan *Peer),
 		quitCh:    make(chan struct{}),
+		msgCh:     make(chan []byte),
 	}
 }
 
@@ -48,9 +50,17 @@ func (s *Server) Start() error {
 	return s.acceptLoop()
 }
 
+func (s *Server) handleRawMessage(rawMsg []byte) error {
+	return nil
+}
+
 func (s *Server) loop() {
 	for {
 		select {
+		case rawMsg := <-s.msgCh:
+			if err := s.handleRawMessage(rawMsg); err != nil {
+				slog.Error("raw message error", "err", err)
+			}
 		case <-s.quitCh:
 			return
 		case peer := <-s.addPeerCh:
@@ -58,6 +68,7 @@ func (s *Server) loop() {
 		}
 	}
 }
+
 func (s *Server) acceptLoop() error {
 	for {
 		conn, err := s.ln.Accept()
@@ -71,10 +82,12 @@ func (s *Server) acceptLoop() error {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	peer := NewPeer(conn)
+	peer := NewPeer(conn, s.msgCh)
 	s.addPeerCh <- peer
-
-	peer.readLoop()
+	slog.Info("new peer connected", "remoteAddr", conn.RemoteAddr())
+	if err := peer.readLoop(); err != nil {
+		slog.Error("peer read error", "err", err, "remoteAddr", conn.RemoteAddr())
+	}
 }
 
 func main() {
