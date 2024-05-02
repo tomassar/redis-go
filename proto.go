@@ -31,7 +31,6 @@ func parseCommand(raw string) (Command, error) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("Read %s\n", v.Type())
 		if v.Type() == resp.Array {
 			for _, value := range v.Array() {
 				switch value.String() {
@@ -47,7 +46,9 @@ func parseCommand(raw string) (Command, error) {
 				}
 			}
 		}
+		return nil, fmt.Errorf("invalid or unknown command received: %s", raw)
+
 	}
 
-	return "", nil
+	return nil, fmt.Errorf("invalid or unknown command received: %s", raw)
 }
